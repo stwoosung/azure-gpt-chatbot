@@ -1,0 +1,131 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Chat UI with Bootstrap</title>
+    <meta charset="UTF-8">
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        #chat-box {
+            height: 350px;
+            overflow-y: auto;
+            margin-bottom: 10px;
+        }
+
+        .my-message {
+            text-align: right;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="row justify-content-center mt-5">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body" id="chat-box">
+                        <p class="other-message">안녕하세요!</p>
+                        <p class="other-message">간단한 채팅 UI 테스트 중입니다.</p>
+                    </div>
+                    <div class="card-footer">
+                        <input type="text" id="message-input" class="form-control" placeholder="메시지를 입력하세요">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+
+        let CHANNEL_ID = null;
+        // const API_URL = "https://woosunggpt-api-function.azurewebsites.net";
+        const API_URL = "http://localhost:7071";
+        
+        function getChannelId() {
+            return $.ajax({
+                url: API_URL + '/channel-id', 
+                type: 'GET', 
+                dataType: 'json'
+            })
+        }
+
+        function getPubSubToken(channelId) {
+            return $.ajax({
+                url: API_URL + '/pubsub/token?channel_id=' + channelId, 
+                type: 'GET', 
+                dataType: 'json'
+            })
+        }
+
+        function connectWebSocket(channelId, token) {
+            const WEB_SOCKET_URL = "wss://woosunggptlecturepubsub.webpubsub.azure.com/client/hubs/dev_hub?access_token=" + token;
+            const pubsubClient = new WebSocket(WEB_SOCKET_URL, 'json.webpubsub.azure.v1');
+            pubsubClient.onopen = function(event) {
+            console.log('Azure websocket connect');
+
+            pubsubClient.send(
+                JSON.stringify({
+                    type: 'joinGroup', 
+                    group: channelId
+                }))
+            };
+
+            pubsubClient.onmessage = function(event) {
+                let message = JSON.parse(event.data);
+
+                if (!message.data || message.data === "") {
+                    return;
+                }
+
+                $('#chat-box').append('<p class="other-message">' + message.data + '</p>');
+                $(this).val('');
+                $('#chat-box').scrollTop($('#chat-box')[0].scrollHeight);
+            }
+        }
+
+        
+
+        $(document).ready(function() {
+            getChannelId().then(response => {
+                CHANNEL_ID = response.channel_id
+                console.log(CHANNEL_ID)
+                return getPubSubToken(CHANNEL_ID)
+            }).then(response => {
+                const token = response.token
+                connectWebSocket(CHANNEL_ID, token)
+            });
+
+            $('#message-input').keydown(function(event) {
+	            if (event.isComposing || event.keyCode === 229) {
+                    return;
+                }
+                if (event.key === 'Enter') {
+                    var message = $(this).val();
+                    if (message.trim() !== '') {
+
+                        $('#chat-box').append('<p class="my-message">' + message + '</p>');
+                        $(event.target).val('');
+                        $('#chat-box').scrollTop($('#chat-box')[0].scrollHeight);
+
+                        $.ajax({
+                            url: API_URL + '/question', 
+                            type: 'POST', 
+                            contentType: 'application/json', 
+                            data: JSON.stringify({
+                                channel_id: CHANNEL_ID, 
+                                content: message
+                            }), 
+                            success: function(response) {
+                                
+                            }, 
+                            error: function(xhr, status, error) {
+                                console.log(error)
+                            }
+                        })
+                    }
+                }
+            });
+        });
+    </script>
+</body>
+</html>
