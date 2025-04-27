@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html>
 <head>
@@ -73,11 +72,11 @@
             pubsubClient.onmessage = function(event) {
                 let message = JSON.parse(event.data);
 
-                if (!message.data || message.data === "") {
+                if (!message.data || message.data.content === "") {
                     return;
                 }
 
-                $('#chat-box').append('<p class="other-message">' + message.data + '</p>');
+                $('#chat-box').append('<p class="other-message">' + message.data.content + '</p>');
                 $(this).val('');
                 $('#chat-box').scrollTop($('#chat-box')[0].scrollHeight);
             }
